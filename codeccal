@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Счётчик калорий + Вода + Блюда</title>
+    <style>
+        :root {
+            --bg: #f0f2f5;
+            --card: #fff;
+            --text: #1a1a2e;
+            --accent: #4f46e5;
+            --accent-light: #eef2ff;
+            --danger: #ef4444;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --border: #e5e7eb;
+            --shadow: 0 1px 3px rgba(0,0,0,0.06);
+            --radius: 12px;
+        }
+        .dark {
+            --bg: #0f172a;
+            --card: #1e293b;
+            --text: #e2e8f0;
+            --accent: #818cf8;
+            --accent-light: #1e1b4b;
+            --border: #334155;
+            --shadow: 0 1px 3px rgba(0,0,0,0.3);
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: var(--bg); color: var(--text);
+            max-width: 900px; margin: 0 auto; padding: 16px;
+            transition: background 0.3s, color 0.3s;
+        }
+        header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
+        h1 { font-size: 22px; font-weight: 700; }
+        .card {
+            background: var(--card); border-radius: var(--radius);
+            padding: 20px; margin-bottom: 14px;
+            box-shadow: var(--shadow); border: 1px solid var(--border);
+        }
+        .card-title { font-size: 15px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+        .search-wrapper { position: relative; }
+        .search-wrapper input {
+            width: 100%; padding: 13px 16px; font-size: 15px;
+            border: 2px solid var(--border); border-radius: 10px;
+            background: var(--bg); color: var(--text); outline: none;
+        }
+        .search-wrapper input:focus { border-color: var(--accent); }
+        .dropdown {
+            position: absolute; top: 100%; left: 0; right: 0;
+            background: var(--card); border: 1px solid var(--border);
+            border-radius: 10px; max-height: 300px; overflow-y: auto;
+            z-index: 100; display: none; box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+            margin-top: 4px;
+        }
+        .dropdown.active { display: block; }
+        .dropdown-item {
+            padding: 10px 16px; cursor: pointer;
+            border-bottom: 1px solid var(--border);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .dropdown-item:last-child { border-bottom: none; }
+        .dropdown-item:hover, .dropdown-item.selected { background: var(--accent-light); }
+        .product-preview {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 12px 16px; background: var(--accent-light);
+            border-radius: 10px; margin-top: 10px; display: none;
+        }
+        .product-preview.active { display: flex; }
+        .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; }
+        .col { flex: 1; min-width: 100px; }
+        label { display: block; font-size: 11px; font-weight: 600; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.7; }
+        input, select, button {
+            width: 100%; padding: 11px 14px; border: 2px solid var(--border);
+            border-radius: 10px; font-size: 14px; background: var(--bg);
+            color: var(--text); font-family: inherit; outline: none;
+        }
+        input:focus, select:focus { border-color: var(--accent); }
+        button {
+            background: var(--accent); color: #fff; border: none;
+            cursor: pointer; font-weight: 600; white-space: nowrap;
+            transition: filter 0.2s, transform 0.1s;
+        }
+        button:hover { filter: brightness(1.1); }
+        button:active { transform: scale(0.97); }
+        button.danger { background: var(--danger); }
+        button.small { width: auto; padding: 7px 12px; font-size: 12px; border-radius: 8px; }
+        button.outline { background: transparent; border: 2px solid var(--accent); color: var(--accent); }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th { text-align: left; padding: 10px 8px; border-bottom: 2px solid var(--border); opacity: 0.7; font-size: 11px; }
+        td { padding: 10px 8px; border-bottom: 1px solid var(--border); }
+        .progress-bar { height: 16px; background: var(--border); border-radius: 10px; overflow: hidden; margin-top: 8px; }
+        .progress-fill { height: 100%; border-radius: 10px; transition: width 0.5s; background: var(--success); }
+        .progress-fill.warning { background: var(--warning); }
+        .progress-fill.over { background: var(--danger); }
+        .macros-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin-top: 12px; text-align: center; }
+        .macro-card { background: var(--bg); border-radius: 10px; padding: 12px 8px; }
+        .macro-card .value { font-size: 22px; font-weight: 700; }
+        .macro-card .label { font-size: 11px; opacity: 0.7; }
+        .theme-btn {
+            background: var(--card); border: 1px solid var(--border);
+            border-radius: 50%; width: 40px; height: 40px; font-size: 18px;
+            cursor: pointer; display: flex; align-items: center; justify-content: center;
+        }
+        @media (max-width: 600px) {
+            .row { flex-direction: column; }
+            .macros-grid { grid-template-columns: repeat(2,1fr); }
+        }
+    </style>
+</head>
+<body>
+    <header>
+       <h1 style="display:flex;align-items:center;gap:16px;margin:0;">
+
+<svg width="70" height="70" viewBox="0 0 70 70" xmlns="http://www.w3.org/2000/svg">
+
+    <rect
+        width="70"
+        height="70"
+        rx="20"
+        fill="#4f46e5"
+    />
+
+    <text
+        x="35"
+        y="34"
+        text-anchor="middle"
+        fill="white"
+        font-size="28"
+        font-weight="700"
+        font-family="Segoe UI, Arial, sans-serif"
+    >
+        PM
+    </text>
+
+    <text
+        x="35"
+        y="54"
+        text-anchor="middle"
+        fill="rgba(255,255,255,0.9)"
+        font-size="10"
+        font-weight="400"
+        letter-spacing="0.5"
+        font-family="Segoe UI, Arial, sans-serif"
+    >
+        Calcount
+    </text>
+
+</svg>
+
+<span style="
+    font-size:32px;
+    font-weight:700;
+    color:#111827;
+">
+    Счётчик калорий
+</span>
+
+</h1>
+        <div style="display: flex; gap: 6px; align-items: center;">
+            <button class="small outline" onclick="changeDate(-1)">◀ Вчера</button>
+            <button class="small" onclick="goToToday()">Сегодня</button>
+            <button class="small outline" onclick="changeDate(1)">Завтра ▶</button>
+            <span id="dateDisplay" style="font-weight:500; margin-left: 8px;"></span>
+            <button class="theme-btn" onclick="toggleTheme()">🌓</button>
+        </div>
+    </header>
+
+    <!-- Поиск с историей и избранным -->
+    <div class="card">
+        <div class="card-title">🔍 Найти продукт 
+            <span style="margin-left:auto; font-size:12px;">
+                <a href="#" onclick="showFavorites(event)" style="color:var(--accent);">⭐ Избранное</a> | 
+                <a href="#" onclick="showHistory(event)" style="color:var(--accent);">🕒 История</a>
+            </span>
+        </div>
+        <div class="search-wrapper">
+            <input type="text" id="searchInput" placeholder="Введите название продукта..." autocomplete="off">
+            <div class="dropdown" id="dropdown"></div>
+        </div>
+        <div class="product-preview" id="productPreview">
+            <div>
+                <strong id="previewName"></strong>
+                <div style="display:flex; gap:12px; margin-top:4px; font-size:13px; flex-wrap:wrap;">
+                    <span>🔥 <span id="previewKcal"></span> ккал/100г</span>
+                    <span>🍗 <span id="previewProtein"></span>г</span>
+                    <span>🧈 <span id="previewFat"></span>г</span>
+                    <span>🍞 <span id="previewCarbs"></span>г</span>
+                    <span id="previewUnitInfo" style="opacity:0.8;"></span>
+                </div>
+            </div>
+            <button class="small" onclick="toggleFavorite()" id="favBtn">⭐</button>
+        </div>
+    </div>
+
+    <!-- Добавить в дневник -->
+    <div class="card">
+        <div class="card-title">➕ Добавить в дневник</div>
+        <div class="row">
+            <div class="col"><label>Продукт</label><input type="text" id="selectedProduct" readonly placeholder="Выберите из поиска"></div>
+            <div class="col" style="max-width:130px;">
+                <label id="quantityLabel">Граммы</label>
+                <input type="number" id="quantityInput" value="100" min="0.1" step="0.1">
+            </div>
+            <div class="col" style="max-width:140px;"><label>Приём</label><select id="mealSelect"><option value="breakfast">Завтрак</option><option value="lunch">Обед</option><option value="dinner">Ужин</option><option value="snack">Перекус</option></select></div>
+            <div class="col" style="max-width:100px; display:flex; align-items:end;"><button onclick="addToDiary()">Добавить</button></div>
+        </div>
+    </div>
+
+    <!-- Вода -->
+    <div class="card">
+        <div class="card-title">💧 Вода</div>
+        <div class="row">
+            <div class="col"><input type="number" id="waterInput" placeholder="мл" min="0" value="250"></div>
+            <div class="col" style="max-width:80px;"><button onclick="addWater()">+</button></div>
+            <div class="col" style="flex:2; display:flex; align-items:center;">
+                <span>Цель: <input type="number" id="waterGoal" value="2000" min="0" style="width:80px;" onchange="updateWaterGoal()"> мл</span>
+                <button class="small danger" onclick="clearWater()" style="margin-left:10px;">🗑 Очистить</button>
+            </div>
+        </div>
+        <div class="progress-bar" style="margin-top:8px;">
+            <div class="progress-fill" id="waterFill" style="width:0%; background:#38bdf8;"></div>
+        </div>
+        <div style="font-size:13px; margin-top:4px;">Выпито: <strong id="waterDrank">0</strong> мл</div>
+    </div>
+
+    <!-- Прогресс калорий -->
+    <div class="card">
+        <div class="card-title">📈 Прогресс калорий</div>
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+            <label style="margin:0;">Цель (ккал):</label>
+            <input type="number" id="goalInput" value="2000" min="500" max="10000" style="width:100px;" onchange="updateGoal()">
+        </div>
+        <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%;"></div></div>
+        <div style="display:flex; justify-content:space-between; margin-top:6px; font-size:13px;">
+            <span>Съедено: <strong id="eatenKcal">0</strong> ккал</span>
+            <span id="leftKcal" style="font-weight:600;">Осталось: 2000</span>
+        </div>
+        <div class="macros-grid">
+            <div class="macro-card" style="color:var(--accent);"><div class="value" id="totalKcal">0</div><div class="label">Калории</div></div>
+            <div class="macro-card" style="color:#ef4444;"><div class="value" id="totalProtein">0</div><div class="label">Белки (г)</div></div>
+            <div class="macro-card" style="color:#f59e0b;"><div class="value" id="totalFat">0</div><div class="label">Жиры (г)</div></div>
+            <div class="macro-card" style="color:#10b981;"><div class="value" id="totalCarbs">0</div><div class="label">Углеводы (г)</div></div>
+        </div>
+    </div>
+
+    <!-- Дневник -->
+    <div class="card">
+        <div class="card-title" style="justify-content:space-between;">
+            <span>📋 Дневник</span>
+            <div style="display:flex; gap:6px;">
+                <button class="small" onclick="exportCSV()">📥 CSV</button>
+                <button class="small danger" onclick="clearDiary()">🗑 Очистить</button>
+            </div>
+        </div>
+        <div id="diaryContent"><div style="text-align:center; opacity:0.5; padding:20px;">Пока пусто</div></div>
+    </div>
+
+    <!-- Калькулятор нормы (внизу) -->
+    <div class="card">
+        <div class="card-title" style="cursor:pointer;" onclick="toggleCalculator()">🧮 Калькулятор нормы калорий и воды ▾</div>
+        <div id="calculatorBody" style="display:none;">
+            <div class="row">
+                <div class="col"><label>Пол</label><select id="calcGender"><option value="male">Мужской</option><option value="female">Женский</option></select></div>
+                <div class="col"><label>Вес (кг)</label><input type="number" id="calcWeight" value="70" min="20"></div>
+                <div class="col"><label>Рост (см)</label><input type="number" id="calcHeight" value="170" min="100"></div>
+                <div class="col"><label>Возраст</label><input type="number" id="calcAge" value="25" min="10"></div>
+            </div>
+            <div class="row" style="margin-top:8px;">
+                <div class="col"><label>Активность</label>
+                    <select id="calcActivity">
+                        <option value="1.2">Сидячий образ жизни</option>
+                        <option value="1.375">Лёгкая активность (1-3 р/нед)</option>
+                        <option value="1.55">Средняя (3-5 р/нед)</option>
+                        <option value="1.725">Высокая (6-7 р/нед)</option>
+                        <option value="1.9">Экстремальная</option>
+                    </select>
+                </div>
+            </div>
+            <button style="margin-top:10px;" onclick="calculateNorm()">Рассчитать</button>
+            <div id="calcResult" style="margin-top:10px;"></div>
+        </div>
+    </div>
+
+    <!-- Добавление своего продукта (внизу) -->
+    <div class="card">
+        <div class="card-title" style="cursor:pointer;" onclick="document.getElementById('customProductForm').style.display = document.getElementById('customProductForm').style.display === 'none' ? 'block' : 'none'">➕ Добавить свой продукт ▾</div>
+        <div id="customProductForm" style="display:none;">
+            <div class="row">
+                <div class="col"><label>Название</label><input type="text" id="customName"></div>
+                <div class="col" style="max-width:100px;"><label>Ккал на 100г</label><input type="number" id="customKcal" value="0"></div>
+            </div>
+            <div class="row" style="margin-top:8px;">
+                <div class="col"><label>Белки</label><input type="number" id="customProtein" value="0" step="0.1"></div>
+                <div class="col"><label>Жиры</label><input type="number" id="customFat" value="0" step="0.1"></div>
+                <div class="col"><label>Углеводы</label><input type="number" id="customCarbs" value="0" step="0.1"></div>
+            </div>
+            <button style="margin-top:10px;" onclick="addCustomProduct()">Сохранить продукт</button>
+        </div>
+    </div>
+
+    <!-- Конструктор блюд (внизу) -->
+    <div class="card">
+        <div class="card-title" style="cursor:pointer;" onclick="document.getElementById('mealBuilder').style.display = document.getElementById('mealBuilder').style.display === 'none' ? 'block' : 'none'">🍲 Конструктор блюд ▾</div>
+        <div id="mealBuilder" style="display:none;">
+            <div class="row">
+                <div class="col"><label>Название блюда</label><input type="text" id="mealName" placeholder="Моё блюдо"></div>
+                <div class="col"><label>Вес готового блюда (г)</label><input type="number" id="mealTotalWeight" value="300"></div>
+            </div>
+            <div id="mealComponents"></div>
+            <button class="small" style="margin-top:8px;" onclick="addComponentRow()">+ Добавить ингредиент</button>
+            <button style="margin-top:10px;" onclick="createMeal()">Создать блюдо</button>
+        </div>
+    </div>
+
+    <script>
+        // ========== БАЗА ПРОДУКТОВ (без "Къадр") ==========
+        let PRODUCTS = [
+            // Крупы и каши
+            ["Гречка варёная",110,4.2,1.1,21.3,"г",0],
+            ["Рис белый варёный",116,2.2,0.4,25.9,"г",0],
+            ["Рис бурый",112,2.3,0.8,23.5,"г",0],
+            ["Овсянка на воде",71,2.5,1.5,12.0,"г",0],
+            ["Овсянка на молоке",102,3.2,4.1,14.2,"г",0],
+            ["Манная каша",98,2.5,3.2,15.3,"г",0],
+            ["Пшённая каша",109,3.5,1.2,22.0,"г",0],
+            ["Перловка",109,2.3,0.3,23.0,"г",0],
+            ["Кукурузная каша",98,2.1,0.8,19.5,"г",0],
+            ["Киноа",120,4.4,1.9,21.3,"г",0],
+            ["Булгур",83,3.1,0.2,18.6,"г",0],
+            ["Макароны варёные",131,4.6,0.7,26.5,"г",0],
+            // Мясо и птица
+            ["Куриная грудка вар.",137,29.8,1.8,0.5,"г",0],
+            ["Куриная грудка жар.",197,31.0,9.0,0.9,"г",0],
+            ["Куриное бедро вар.",158,23.0,7.0,0.4,"г",0],
+            ["Куриное бедро жар.",220,26.0,13.0,0.6,"г",0],
+            ["Индейка вар.",135,29.0,2.0,0.3,"г",0],
+            ["Говядина вар.",254,25.8,16.8,0.5,"г",0],
+            ["Говядина жар.",280,28.0,18.0,0.8,"г",0],
+            ["Свинина вар.",265,22.0,20.0,0.5,"г",0],
+            ["Свинина жар.",320,25.0,24.0,1.0,"г",0],
+            ["Баранина вар.",245,24.0,17.0,0.6,"г",0],
+            // Яйца
+            ["Яйцо варёное",155,12.6,10.6,1.1,"шт",50],
+            ["Яичница",196,13.6,14.8,1.2,"шт",60],
+            ["Омлет",184,12.5,14.2,1.9,"шт",120],
+            // Рыба и морепродукты
+            ["Лосось запеч.",206,24.0,12.0,0.5,"г",0],
+            ["Форель",168,23.0,8.0,0.4,"г",0],
+            ["Тунец конс.",116,25.5,0.8,0.2,"г",0],
+            ["Скумбрия копч.",262,20.7,19.5,0.4,"г",0],
+            ["Минтай вар.",79,17.6,1.0,0.3,"г",0],
+            ["Треска вар.",78,17.8,0.7,0.1,"г",0],
+            ["Креветки вар.",87,18.3,1.2,0.8,"г",0],
+            ["Кальмар вар.",75,15.5,0.8,1.3,"г",0],
+            // Молочные продукты
+            ["Молоко 2.5%",52,2.8,2.5,4.7,"г",0],
+            ["Молоко 3.2%",60,2.9,3.2,4.7,"г",0],
+            ["Кефир 2.5%",50,2.8,2.5,3.9,"г",0],
+            ["Творог 5%",121,17.2,5.0,1.8,"г",0],
+            ["Творог 9%",159,16.7,9.0,2.0,"г",0],
+            ["Творог обезж.",71,16.5,0.5,2.0,"г",0],
+            ["Сыр российский",364,23.0,29.0,0.5,"г",0],
+            ["Моцарелла",280,18.0,24.0,2.2,"г",0],
+            ["Фета",264,14.0,21.0,4.0,"г",0],
+            ["Сметана 15%",158,2.6,15.0,3.6,"г",0],
+            ["Сметана 20%",206,2.5,20.0,3.4,"г",0],
+            ["Йогурт натур.",63,4.0,3.2,5.5,"г",0],
+            ["Греческий йогурт",97,9.0,5.0,3.5,"г",0],
+            ["Сливочное масло",748,0.5,82.5,0.8,"г",0],
+            // Овощи
+            ["Картофель вар.",82,2.0,0.4,17.5,"шт",150],
+            ["Картофель жар.",192,2.8,9.5,24.0,"шт",150],
+            ["Пюре карт.",106,2.5,4.2,15.0,"г",0],
+            ["Капуста белокоч.",28,1.8,0.1,4.7,"г",0],
+            ["Цветная капуста",30,2.5,0.3,4.2,"г",0],
+            ["Брокколи",34,2.8,0.4,5.2,"г",0],
+            ["Морковь",35,0.9,0.2,7.8,"шт",80],
+            ["Свёкла вар.",44,1.7,0.2,8.8,"шт",100],
+            ["Огурец",15,0.8,0.1,2.6,"шт",100],
+            ["Помидор",20,1.1,0.2,3.8,"шт",100],
+            ["Перец болг.",27,1.3,0.2,5.7,"шт",120],
+            ["Лук репчатый",41,1.4,0.2,8.2,"шт",80],
+            ["Чеснок",149,6.4,0.5,30.0,"зубчик",5],
+            ["Кабачок",24,0.6,0.3,4.9,"шт",200],
+            ["Баклажан",24,1.2,0.1,4.5,"шт",200],
+            ["Тыква",28,1.0,0.1,6.5,"г",0],
+            ["Кукуруза вар.",96,3.4,1.5,20.0,"початок",100],
+            ["Зел.горошек",73,5.0,0.2,12.8,"г",0],
+            ["Авокадо",160,2.0,14.7,8.5,"шт",150],
+            // Фрукты
+            ["Яблоко",47,0.4,0.4,9.8,"шт",130],
+            ["Банан",89,1.1,0.3,22.8,"шт",120],
+            ["Апельсин",43,0.9,0.2,8.1,"шт",150],
+            ["Мандарин",38,0.8,0.2,7.5,"шт",80],
+            ["Грейпфрут",35,0.7,0.2,6.5,"шт",200],
+            ["Киви",47,0.8,0.4,8.1,"шт",60],
+            ["Груша",47,0.4,0.3,10.3,"шт",150],
+            ["Виноград",65,0.6,0.2,15.4,"г",0],
+            ["Арбуз",30,0.6,0.1,5.8,"г",0],
+            ["Дыня",36,0.6,0.2,7.4,"г",0],
+            ["Персик",39,0.9,0.3,9.5,"шт",100],
+            ["Слива",46,0.7,0.3,10.0,"шт",40],
+            ["Черешня",52,1.0,0.3,11.3,"г",0],
+            ["Клубника",33,0.7,0.3,5.7,"г",0],
+            ["Малина",46,0.8,0.5,8.3,"г",0],
+            ["Гранат",72,0.7,0.6,14.5,"шт",250],
+            ["Хурма",67,0.5,0.4,15.3,"шт",100],
+            // Хлеб и выпечка
+            ["Хлеб белый",266,7.6,3.3,50.6,"кусок",25],
+            ["Хлеб ржаной",210,5.6,1.1,42.5,"кусок",25],
+            ["Цельнозерновой",247,8.8,3.4,41.3,"кусок",30],
+            ["Батон",263,7.5,3.1,51.0,"кусок",25],
+            ["Лаваш",277,9.1,1.1,56.0,"лист",70],
+            ["Овсяное печенье",437,6.5,14.5,71.0,"шт",15],
+            ["Крекер",420,8.0,14.0,67.0,"шт",10],
+            // Орехи и сухофрукты
+            ["Грецкий орех",654,15.2,65.2,13.7,"г",0],
+            ["Миндаль",575,21.2,49.4,21.6,"г",0],
+            ["Арахис",567,26.0,49.0,16.1,"г",0],
+            ["Фундук",628,15.0,60.8,16.7,"г",0],
+            ["Кешью",553,18.2,43.8,30.2,"г",0],
+            ["Изюм",299,3.1,0.5,79.2,"г",0],
+            ["Курага",241,3.4,0.5,62.6,"г",0],
+            ["Чернослив",256,2.3,0.7,57.5,"шт",10],
+            ["Финики",282,2.5,0.5,75.0,"шт",10],
+            // Ингушская кухня
+            ["Чапилг с творогом",220,10.0,9.0,24.0,"шт",150],
+            ["Чапилг с картошкой",200,5.0,8.0,27.0,"шт",150],
+            ["Чапилг с тыквой",185,5.0,7.0,25.0,"шт",150],
+            ["Сискал (кукур. лепёшка)",175,5.6,5.6,23.9,"шт",100],
+            ["Халтам (галушки)",180,6.0,2.0,35.0,"г",0]
+        ];
+
+        // Загружаем кастомные продукты
+        const savedCustom = JSON.parse(localStorage.getItem('customProducts') || '[]');
+        PRODUCTS = PRODUCTS.concat(savedCustom);
+
+        // ========== СОСТОЯНИЕ ==========
+        let currentDate = new Date().toISOString().split('T')[0];
+        let dailyGoal = parseInt(localStorage.getItem('calorieGoal')) || 2000;
+        let waterGoal = parseInt(localStorage.getItem('waterGoal')) || 2000;
+        let selectedProduct = null;
+        let favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
+        let searchHistory = JSON.parse(localStorage.getItem('searchHistory') || '[]');
+
+        function getKey(date, type) { return type + '_' + date; }
+        function getDayData(date, type) { return JSON.parse(localStorage.getItem(getKey(date, type)) || '[]'); }
+        function saveDayData(date, type, data) { localStorage.setItem(getKey(date, type), JSON.stringify(data)); }
+
+        // Тема
+        function toggleTheme() {
+            document.body.classList.toggle('dark');
+            localStorage.setItem('theme', document.body.classList.contains('dark') ? 'dark' : 'light');
+        }
+        if (localStorage.getItem('theme') === 'dark') document.body.classList.add('dark');
+
+        // Калькулятор нормы
+        function toggleCalculator() {
+            const body = document.getElementById('calculatorBody');
+            body.style.display = body.style.display === 'none' ? 'block' : 'none';
+        }
+        function calculateNorm() {
+            const gender = document.getElementById('calcGender').value;
+            const weight = parseFloat(document.getElementById('calcWeight').value);
+            const height = parseFloat(document.getElementById('calcHeight').value);
+            const age = parseInt(document.getElementById('calcAge').value);
+            const activity = parseFloat(document.getElementById('calcActivity').value);
+            let bmr;
+            if (gender === 'male') {
+                bmr = 10 * weight + 6.25 * height - 5 * age + 5;
+            } else {
+                bmr = 10 * weight + 6.25 * height - 5 * age - 161;
+            }
+            const calories = Math.round(bmr * activity);
+            const water = Math.round(weight * 35);
+            document.getElementById('calcResult').innerHTML = `
+                <div>Рекомендуемая норма: <strong>${calories} ккал</strong> в день</div>
+                <div>Воды: <strong>${water} мл</strong> в день</div>
+                <button class="small" onclick="applyNorms(${calories}, ${water})">Применить</button>
+            `;
+        }
+        function applyNorms(cal, water) {
+            dailyGoal = cal;
+            waterGoal = water;
+            localStorage.setItem('calorieGoal', dailyGoal);
+            localStorage.setItem('waterGoal', waterGoal);
+            document.getElementById('goalInput').value = dailyGoal;
+            document.getElementById('waterGoal').value = waterGoal;
+            renderDiary();
+            renderWater();
+        }
+
+        // Поиск с историей и избранным
+        const searchInput = document.getElementById('searchInput');
+        const dropdown = document.getElementById('dropdown');
+        let selectedIndex = -1;
+
+        searchInput.addEventListener('input', function() {
+            const query = this.value.trim().toLowerCase();
+            dropdown.innerHTML = '';
+            selectedIndex = -1;
+            if (query.length < 1) {
+                dropdown.classList.remove('active');
+                return;
+            }
+            const filtered = PRODUCTS.filter(p => p[0].toLowerCase().includes(query)).slice(0, 15);
+            if (filtered.length === 0) {
+                dropdown.innerHTML = '<div style="padding:16px;text-align:center;opacity:0.6;">Ничего не найдено</div>';
+            } else {
+                filtered.forEach((product, idx) => {
+                    const div = document.createElement('div');
+                    div.className = 'dropdown-item';
+                    const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')})`, 'gi');
+                    const highlightedName = product[0].replace(regex, '<mark style="background:var(--accent-light);color:var(--accent);padding:0 2px;border-radius:3px;">$1</mark>');
+                    const unit = product[5];
+                    const weight = product[6];
+                    let unitStr = '';
+                    if (unit !== 'г' && weight > 0) unitStr = ` (1 ${unit} ≈ ${weight} г)`;
+                    div.innerHTML = `
+                        <div>
+                            <div style="font-weight:500;">${highlightedName} ${unitStr} ${favorites.includes(product[0]) ? '⭐' : ''}</div>
+                            <div style="font-size:12px;opacity:0.7;">Б:${product[2]} Ж:${product[3]} У:${product[4]}</div>
+                        </div>
+                        <div style="font-weight:600;color:var(--accent);">${product[1]} ккал</div>
+                    `;
+                    div.addEventListener('click', () => {
+                        selectProduct(product);
+                        addToHistory(product[0]);
+                        dropdown.classList.remove('active');
+                    });
+                    dropdown.appendChild(div);
+                });
+            }
+            dropdown.classList.add('active');
+        });
+
+        searchInput.addEventListener('keydown', function(e) {
+            const items = dropdown.querySelectorAll('.dropdown-item');
+            if (!dropdown.classList.contains('active') || items.length === 0) return;
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                selectedIndex = Math.min(selectedIndex + 1, items.length - 1);
+                updateSelection(items);
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                selectedIndex = Math.max(selectedIndex - 1, 0);
+                updateSelection(items);
+            } else if (e.key === 'Enter' && selectedIndex >= 0) {
+                e.preventDefault();
+                items[selectedIndex].click();
+            }
+        });
+
+        function updateSelection(items) {
+            items.forEach((item, i) => {
+                item.classList.toggle('selected', i === selectedIndex);
+                if (i === selectedIndex) item.scrollIntoView({ block: 'nearest' });
+            });
+        }
+
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.search-wrapper')) dropdown.classList.remove('active');
+        });
+
+        function addToHistory(term) {
+            searchHistory = [term, ...searchHistory.filter(t => t !== term)].slice(0, 10);
+            localStorage.setItem('searchHistory', JSON.stringify(searchHistory));
+        }
+        function showHistory(e) {
+            e.preventDefault();
+            dropdown.innerHTML = searchHistory.length ? searchHistory.map(term => `<div class="dropdown-item" onclick="searchInput.value='${term}'; searchInput.dispatchEvent(new Event('input')); dropdown.classList.remove('active');">🕒 ${term}</div>`).join('') : '<div style="padding:10px;">Пусто</div>';
+            dropdown.classList.add('active');
+        }
+        function showFavorites(e) {
+            e.preventDefault();
+            const favProducts = PRODUCTS.filter(p => favorites.includes(p[0]));
+            dropdown.innerHTML = favProducts.length ? favProducts.map(p => `<div class="dropdown-item" onclick="selectProduct(${JSON.stringify(p).replace(/"/g, '&quot;')}); dropdown.classList.remove('active');">⭐ ${p[0]} (${p[1]} ккал)</div>`).join('') : '<div style="padding:10px;">Нет избранного</div>';
+            dropdown.classList.add('active');
+        }
+
+        function selectProduct(product) {
+            selectedProduct = product;
+            document.getElementById('selectedProduct').value = product[0];
+            document.getElementById('previewName').textContent = product[0];
+            document.getElementById('previewKcal').textContent = product[1];
+            document.getElementById('previewProtein').textContent = product[2];
+            document.getElementById('previewFat').textContent = product[3];
+            document.getElementById('previewCarbs').textContent = product[4];
+            const unit = product[5], weight = product[6];
+            const unitInfo = document.getElementById('previewUnitInfo');
+            if (unit !== 'г' && weight > 0) {
+                unitInfo.textContent = `📏 1 ${unit} ≈ ${weight} г`;
+                document.getElementById('quantityLabel').textContent = unit.charAt(0).toUpperCase() + unit.slice(1);
+                document.getElementById('quantityInput').value = 1;
+            } else {
+                unitInfo.textContent = '';
+                document.getElementById('quantityLabel').textContent = 'Граммы';
+                document.getElementById('quantityInput').value = 100;
+            }
+            document.getElementById('productPreview').classList.add('active');
+            document.getElementById('favBtn').textContent = favorites.includes(product[0]) ? '⭐' : '☆';
+            searchInput.value = product[0];
+        }
+
+        function toggleFavorite() {
+            if (!selectedProduct) return;
+            const name = selectedProduct[0];
+            if (favorites.includes(name)) {
+                favorites = favorites.filter(f => f !== name);
+            } else {
+                favorites.push(name);
+            }
+            localStorage.setItem('favorites', JSON.stringify(favorites));
+            document.getElementById('favBtn').textContent = favorites.includes(name) ? '⭐' : '☆';
+        }
+
+        // Свой продукт
+        function addCustomProduct() {
+            const name = document.getElementById('customName').value.trim();
+            const kcal = parseFloat(document.getElementById('customKcal').value);
+            const protein = parseFloat(document.getElementById('customProtein').value);
+            const fat = parseFloat(document.getElementById('customFat').value);
+            const carbs = parseFloat(document.getElementById('customCarbs').value);
+            if (!name) return alert('Введите название');
+            const product = [name, kcal, protein, fat, carbs, 'г', 0];
+            PRODUCTS.push(product);
+            const custom = JSON.parse(localStorage.getItem('customProducts') || '[]');
+            custom.push(product);
+            localStorage.setItem('customProducts', JSON.stringify(custom));
+            document.getElementById('customName').value = '';
+            document.getElementById('customKcal').value = 0;
+            alert('Продукт добавлен!');
+        }
+
+        // Конструктор блюд
+        function addComponentRow() {
+            const container = document.getElementById('mealComponents');
+            const row = document.createElement('div');
+            row.className = 'row';
+            row.innerHTML = `
+                <div class="col"><input type="text" placeholder="Продукт" class="comp-search"></div>
+                <div class="col" style="max-width:100px;"><input type="number" placeholder="Вес (г)" value="100"></div>
+                <button class="small danger" onclick="this.parentElement.remove()">✕</button>
+            `;
+            container.appendChild(row);
+        }
+        function createMeal() {
+            const mealName = document.getElementById('mealName').value.trim();
+            const totalWeight = parseFloat(document.getElementById('mealTotalWeight').value);
+            if (!mealName || !totalWeight) return alert('Введите название и вес блюда');
+            const rows = document.querySelectorAll('#mealComponents .row');
+            let totalKcal = 0, totalP = 0, totalF = 0, totalC = 0;
+            for (const row of rows) {
+                const input = row.querySelector('.comp-search');
+                const weightInput = row.querySelector('input[type="number"]');
+                const name = input.value.trim();
+                const weight = parseFloat(weightInput.value);
+                const product = PRODUCTS.find(p => p[0].toLowerCase() === name.toLowerCase());
+                if (!product || !weight) continue;
+                const [_, kcal100, p100, f100, c100] = product;
+                totalKcal += kcal100 * weight / 100;
+                totalP += p100 * weight / 100;
+                totalF += f100 * weight / 100;
+                totalC += c100 * weight / 100;
+            }
+            const per100Kcal = Math.round(totalKcal / totalWeight * 100);
+            const per100P = +(totalP / totalWeight * 100).toFixed(1);
+            const per100F = +(totalF / totalWeight * 100).toFixed(1);
+            const per100C = +(totalC / totalWeight * 100).toFixed(1);
+            const newMeal = [mealName, per100Kcal, per100P, per100F, per100C, 'г', 0];
+            PRODUCTS.push(newMeal);
+            const custom = JSON.parse(localStorage.getItem('customProducts') || '[]');
+            custom.push(newMeal);
+            localStorage.setItem('customProducts', JSON.stringify(custom));
+            selectedProduct = newMeal;
+            document.getElementById('selectedProduct').value = newMeal[0];
+            alert(`Блюдо "${mealName}" создано! Можно добавить в дневник.`);
+        }
+
+        // Вода
+        function addWater() {
+            const amount = parseFloat(document.getElementById('waterInput').value);
+            if (!amount || amount <= 0) return;
+            const data = getDayData(currentDate, 'water');
+            data.push(amount);
+            saveDayData(currentDate, 'water', data);
+            document.getElementById('waterInput').value = 250;
+            renderWater();
+        }
+        function clearWater() {
+            if (confirm('Очистить всю выпитую воду за этот день?')) {
+                saveDayData(currentDate, 'water', []);
+                renderWater();
+            }
+        }
+        function renderWater() {
+            const data = getDayData(currentDate, 'water');
+            const total = data.reduce((s, v) => s + v, 0);
+            document.getElementById('waterDrank').textContent = total;
+            const percent = waterGoal > 0 ? Math.min((total / waterGoal) * 100, 100) : 0;
+            document.getElementById('waterFill').style.width = percent + '%';
+            document.getElementById('waterGoal').value = waterGoal;
+        }
+        function updateWaterGoal() {
+            waterGoal = parseInt(document.getElementById('waterGoal').value) || 2000;
+            localStorage.setItem('waterGoal', waterGoal);
+            renderWater();
+        }
+
+        // Дневник
+        function addToDiary() {
+            if (!selectedProduct) return alert('Сначала выберите продукт');
+            const quantity = parseFloat(document.getElementById('quantityInput').value);
+            if (!quantity || quantity <= 0) return alert('Введите количество');
+            const meal = document.getElementById('mealSelect').value;
+            const [name, kcal100, p100, f100, c100, unit, weightPerUnit] = selectedProduct;
+            let grams;
+            if (unit !== 'г' && weightPerUnit > 0) grams = quantity * weightPerUnit;
+            else grams = quantity;
+            const item = {
+                name,
+                quantity: quantity + (unit !== 'г' ? ' ' + unit : ' г'),
+                grams: +grams.toFixed(1),
+                kcal: Math.round(kcal100 * grams / 100),
+                protein: +(p100 * grams / 100).toFixed(1),
+                fat: +(f100 * grams / 100).toFixed(1),
+                carbs: +(c100 * grams / 100).toFixed(1),
+                meal,
+                time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})
+            };
+            const data = getDayData(currentDate, 'diary');
+            data.push(item);
+            saveDayData(currentDate, 'diary', data);
+            document.getElementById('quantityInput').value = (unit !== 'г' ? 1 : 100);
+            renderDiary();
+        }
+        function deleteItem(index) {
+            const data = getDayData(currentDate, 'diary');
+            data.splice(index, 1);
+            saveDayData(currentDate, 'diary', data);
+            renderDiary();
+        }
+        function clearDiary() {
+            if (confirm('Удалить все записи за этот день?')) {
+                saveDayData(currentDate, 'diary', []);
+                renderDiary();
+            }
+        }
+        function renderDiary() {
+            document.getElementById('dateDisplay').textContent = formatDate(currentDate);
+            const data = getDayData(currentDate, 'diary');
+            const container = document.getElementById('diaryContent');
+            if (data.length === 0) {
+                container.innerHTML = '<div style="text-align:center; opacity:0.5; padding:20px;">Пока пусто</div>';
+            } else {
+                let html = `<table><thead><tr><th>Продукт</th><th>Кол-во</th><th>Вес</th><th>Приём</th><th>Ккал</th><th>Б</th><th>Ж</th><th>У</th><th></th></tr></thead><tbody>`;
+                const mealNames = {breakfast:'Завтрак', lunch:'Обед', dinner:'Ужин', snack:'Перекус'};
+                const mealColors = {breakfast:'#fbbf24', lunch:'#f87171', dinner:'#818cf8', snack:'#34d399'};
+                data.forEach((item, i) => {
+                    const badge = mealColors[item.meal] || '#ccc';
+                    html += `<tr>
+                        <td>${item.name}</td>
+                        <td>${item.quantity}</td>
+                        <td>${item.grams} г</td>
+                        <td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${badge};margin-right:6px;"></span>${mealNames[item.meal]||item.meal}</td>
+                        <td>${item.kcal}</td>
+                        <td>${item.protein}</td>
+                        <td>${item.fat}</td>
+                        <td>${item.carbs}</td>
+                        <td><button class="small danger" onclick="deleteItem(${i})" style="padding:4px 8px;">✕</button></td>
+                    </tr>`;
+                });
+                html += '</tbody></table>';
+                container.innerHTML = html;
+            }
+            updateStats(data);
+        }
+        function updateStats(data) {
+            const totalKcal = data.reduce((s,i) => s + i.kcal, 0);
+            const totalP = data.reduce((s,i) => s + i.protein, 0);
+            const totalF = data.reduce((s,i) => s + i.fat, 0);
+            const totalC = data.reduce((s,i) => s + i.carbs, 0);
+            document.getElementById('totalKcal').textContent = totalKcal;
+            document.getElementById('totalProtein').textContent = totalP.toFixed(1);
+            document.getElementById('totalFat').textContent = totalF.toFixed(1);
+            document.getElementById('totalCarbs').textContent = totalC.toFixed(1);
+            document.getElementById('eatenKcal').textContent = totalKcal;
+            const percent = dailyGoal > 0 ? Math.min((totalKcal / dailyGoal) * 100, 100) : 0;
+            const fill = document.getElementById('progressFill');
+            fill.style.width = percent + '%';
+            fill.className = 'progress-fill ' + (percent >= 100 ? 'over' : percent >= 85 ? 'warning' : '');
+            const left = dailyGoal - totalKcal;
+            const leftSpan = document.getElementById('leftKcal');
+            leftSpan.textContent = left > 0 ? `Осталось: ${left} ккал` : `Перебор на ${Math.abs(left)} ккал`;
+            leftSpan.style.color = left >= 0 ? '' : 'var(--danger)';
+            document.getElementById('goalInput').value = dailyGoal;
+        }
+
+        // Даты
+        function formatDate(dateStr) {
+            const [y,m,d] = dateStr.split('-');
+            const months = ['Янв','Фев','Мар','Апр','Май','Июн','Июл','Авг','Сен','Окт','Ноя','Дек'];
+            return `${d} ${months[parseInt(m)-1]} ${y}`;
+        }
+        function changeDate(delta) {
+            const d = new Date(currentDate);
+            d.setDate(d.getDate() + delta);
+            currentDate = d.toISOString().split('T')[0];
+            renderDiary();
+            renderWater();
+        }
+        function goToToday() {
+            currentDate = new Date().toISOString().split('T')[0];
+            renderDiary();
+            renderWater();
+        }
+        function updateGoal() {
+            dailyGoal = parseInt(document.getElementById('goalInput').value) || 2000;
+            localStorage.setItem('calorieGoal', dailyGoal);
+            renderDiary();
+        }
+
+        // Экспорт CSV
+        function exportCSV() {
+            const data = getDayData(currentDate, 'diary');
+            let csv = 'Продукт,Количество,Вес (г),Приём,Ккал,Белки,Жиры,Углеводы\n';
+            const mealNames = {breakfast:'Завтрак', lunch:'Обед', dinner:'Ужин', snack:'Перекус'};
+            data.forEach(i => {
+                csv += `"${i.name}","${i.quantity}",${i.grams},${mealNames[i.meal]||i.meal},${i.kcal},${i.protein},${i.fat},${i.carbs}\n`;
+            });
+            const blob = new Blob([csv], {type:'text/csv'});
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `калории_${currentDate}.csv`;
+            a.click();
+        }
+
+        // Старт
+        document.getElementById('dateDisplay').textContent = formatDate(currentDate);
+        renderDiary();
+        renderWater();
+    </script>
+</body>
+</html>
